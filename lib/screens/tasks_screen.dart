@@ -233,6 +233,7 @@ class TasksScreen extends StatelessWidget {
 
                     String message = 'تمت إضافة المهمة';
                     if (selectedDateTime != null) {
+                      await NotificationService.init();
                       final task = state.tasks.first;
                       final ok = await NotificationService.scheduleOneTime(
                         id: NotificationService.taskNotificationId(task.id),
@@ -240,9 +241,14 @@ class TasksScreen extends StatelessWidget {
                         body: title,
                         when: selectedDateTime!,
                       );
-                      message = ok
-                          ? 'تمت إضافة المهمة مع التذكير ✓'
-                          : 'تمت الإضافة، لكن فشل جدولة الإشعار';
+                      if (ok) {
+                        message = 'تمت إضافة المهمة مع التذكير ✓';
+                      } else {
+                        final err = NotificationService.lastError;
+                        message = err != null && err.isNotEmpty
+                            ? 'فشلت الجدولة: $err'
+                            : 'تمت الإضافة، لكن فشل جدولة الإشعار';
+                      }
                     }
 
                     if (ctx.mounted) {
