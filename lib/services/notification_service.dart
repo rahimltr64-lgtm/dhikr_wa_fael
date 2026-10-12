@@ -16,7 +16,6 @@ class NotificationService {
   static Future<void> init() async {
     try {
       tzdata.initializeTimeZones();
-      // UTC أولاً لضمان وجود منطقة دائماً
       tz.setLocalLocation(tz.UTC);
       for (final name in ['Asia/Riyadh', 'Asia/Dubai', 'Africa/Cairo']) {
         try {
@@ -70,22 +69,7 @@ class NotificationService {
   }
 
   static Future<void> _ensureInit() async {
-    if (!_initialized) {
-      await init();
-    }
-  }
-
-  static tz.TZDateTime _toTz(DateTime when) {
-    // DateTime من المنتقي محلي على الجهاز — نبني TZDateTime بنفس الأرقام
-    return tz.TZDateTime(
-      tz.local,
-      when.year,
-      when.month,
-      when.day,
-      when.hour,
-      when.minute,
-      when.second,
-    );
+    if (!_initialized) await init();
   }
 
   static Future<void> scheduleDaily({
@@ -164,7 +148,7 @@ class NotificationService {
     );
   }
 
-  /// جدولة إشعار مهمة — يرجع true عند النجاح
+  /// جدولة إشعار مهمة — يعتمد على المدة المتبقية من الآن (أكثر موثوقية)
   static Future<bool> scheduleOneTime({
     required int id,
     required String title,
@@ -174,21 +158,23 @@ class NotificationService {
     lastError = null;
     try {
       await _ensureInit();
-
       if (!_initialized) {
         lastError = 'فشل تهيئة الإشعارات';
         return false;
       }
 
       final now = DateTime.now();
-      if (!when.isAfter(now)) {
-        lastError = 'الوقت المختار في الماضي';
+      final delay = when.difference(now);
+
+      if (delay.inSeconds < 30) {
+        lastError = 'اختر وقتاً بعد دقيقة على الأقل';
         return false;
       }
 
-      final scheduled = _toTz(when);
+      // الأهم: نجدول بالنسبة للوقت الحالي وليس كوقت مطلق
+      // هذا يتجنب مشاكل اختلاف المنطقة الزمنية
+      final scheduled = tz.TZDateTime.now(tz.local).add(delay);
 
-      // طلب إذن المنبهات الدقيقة قبل الجدولة
       try {
         final android = _notifications
             .resolvePlatformSpecificImplementation<
@@ -196,7 +182,7 @@ class NotificationService {
         await android?.requestExactAlarmsPermission();
       } catch (_) {}
 
-      // المحاولة 1: جدولة دقيقة
+      // محاولة دقيقة
       try {
         await _notifications.zonedSchedule(
           id,
@@ -212,6 +198,7 @@ class NotificationService {
               priority: Priority.max,
               playSound: true,
               enableVibration: true,
+              category: AndroidNotificationCategory.reminder,
             ),
           ),
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -220,8 +207,8 @@ class NotificationService {
         );
         return true;
       } catch (e1) {
-        print('Exact schedule failed: $e1');
-        // المحاولة 2: جدولة غير دقيقة
+        print('Exact failed: $e1');
+        // محاولة غير دقيقة
         try {
           await _notifications.zonedSchedule(
             id,
@@ -246,7 +233,7 @@ class NotificationService {
           return true;
         } catch (e2) {
           lastError = e2.toString();
-          print('Inexact schedule failed: $e2');
+          print('Inexact failed: $e2');
           return false;
         }
       }
