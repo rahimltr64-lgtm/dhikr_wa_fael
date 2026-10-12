@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/dhikr_model.dart';
+import 'package:share_plus/share_plus.dart';
 import '../services/app_state.dart';
 
 class DhikrDetailScreen extends StatelessWidget {
@@ -26,7 +27,18 @@ class DhikrDetailScreen extends StatelessWidget {
         title: Text(dhikr.title),
         actions: [
           IconButton(
+            icon: const Icon(Icons.share),
+            tooltip: 'مشاركة',
+            onPressed: () {
+              Share.share(
+                '${dhikr.title}\n\n${dhikr.text}\n\n— من تطبيق ذكر وفعل',
+                subject: dhikr.title,
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
+            tooltip: 'إعادة تعيين',
             onPressed: () {
               state.resetDhikr(dhikr.id);
             },
@@ -127,6 +139,9 @@ class DhikrDetailScreen extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: () {
                     HapticFeedback.lightImpact();
+                    if (state.soundEnabled) {
+                      SystemSound.play(SystemSoundType.click);
+                    }
                     state.incrementDhikr(dhikr.id);
                   },
                   style: ElevatedButton.styleFrom(
