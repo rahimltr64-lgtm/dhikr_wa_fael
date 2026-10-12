@@ -195,12 +195,6 @@ class TasksScreen extends StatelessWidget {
                         initialDate: now,
                         firstDate: now,
                         lastDate: now.add(const Duration(days: 365)),
-                        builder: (context, child) {
-                          return Directionality(
-                            textDirection: TextDirection.rtl,
-                            child: child!,
-                          );
-                        },
                       );
                       if (date == null || !context.mounted) return;
 
@@ -209,12 +203,6 @@ class TasksScreen extends StatelessWidget {
                         initialTime: TimeOfDay.fromDateTime(
                           now.add(const Duration(hours: 1)),
                         ),
-                        builder: (context, child) {
-                          return Directionality(
-                            textDirection: TextDirection.rtl,
-                            child: child!,
-                          );
-                        },
                       );
                       if (time == null) return;
 
