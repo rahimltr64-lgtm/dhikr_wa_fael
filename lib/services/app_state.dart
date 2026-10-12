@@ -233,15 +233,24 @@ class AppState extends ChangeNotifier {
 
   int getDhikrCount(String id) => dhikrProgress[id] ?? 0;
 
-  void addTask(String title, {String? linkedDhikr}) {
+  void addTask(String title, {String? linkedDhikr, DateTime? reminderTime}) {
     final task = TaskModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: title,
       linkedDhikr: linkedDhikr,
+      reminderTime: reminderTime,
     );
     tasks.insert(0, task);
     storage.saveTasks(tasks);
     notifyListeners();
+  }
+
+  TaskModel? getTaskById(String id) {
+    try {
+      return tasks.firstWhere((t) => t.id == id);
+    } catch (_) {
+      return null;
+    }
   }
 
   void toggleTask(String id) {
