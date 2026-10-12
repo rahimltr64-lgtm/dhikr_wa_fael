@@ -12,6 +12,11 @@ class StorageService {
   bool get isDarkMode => _prefs.getBool('isDarkMode') ?? false;
   Future<void> setDarkMode(bool value) => _prefs.setBool('isDarkMode', value);
 
+  // Notifications
+  bool get notificationsEnabled => _prefs.getBool('notificationsEnabled') ?? true;
+  Future<void> setNotificationsEnabled(bool value) =>
+      _prefs.setBool('notificationsEnabled', value);
+
   // Tasbih counter
   int get tasbihCount => _prefs.getInt('tasbihCount') ?? 0;
   Future<void> setTasbihCount(int value) => _prefs.setInt('tasbihCount', value);
@@ -26,7 +31,9 @@ class StorageService {
     if (data == null || data.isEmpty) return [];
     try {
       final List<dynamic> list = jsonDecode(data);
-      return list.map((e) => TaskModel.fromJson(e as Map<String, dynamic>)).toList();
+      return list
+          .map((e) => TaskModel.fromJson(e as Map<String, dynamic>))
+          .toList();
     } catch (_) {
       return [];
     }
