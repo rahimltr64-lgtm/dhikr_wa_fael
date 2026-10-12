@@ -5,12 +5,23 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/home_screen.dart';
 import 'services/storage_service.dart';
 import 'services/app_state.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // تهيئة الإشعارات
+  await NotificationService.init();
+
   final prefs = await SharedPreferences.getInstance();
   final storage = StorageService(prefs);
-  
+
+  // جدولة الإشعارات الافتراضية إذا كانت مفعّلة
+  final notificationsEnabled = prefs.getBool('notificationsEnabled') ?? true;
+  if (notificationsEnabled) {
+    await NotificationService.scheduleDefaultReminders();
+  }
+
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
