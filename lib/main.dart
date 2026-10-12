@@ -17,11 +17,9 @@ void main() async {
     ),
   );
 
-  // تحميل التخزين أولاً (مهم)
   final prefs = await SharedPreferences.getInstance();
   final storage = StorageService(prefs);
 
-  // تشغيل التطبيق فوراً دون انتظار الإشعارات
   runApp(
     MultiProvider(
       providers: [
@@ -31,14 +29,20 @@ void main() async {
     ),
   );
 
-  // تهيئة الإشعارات في الخلفية بعد ظهور الواجهة
+  // تهيئة الإشعارات في الخلفية
   Future.microtask(() async {
     try {
       await NotificationService.init();
-      final notificationsEnabled =
-          prefs.getBool('notificationsEnabled') ?? true;
-      if (notificationsEnabled) {
-        await NotificationService.scheduleDefaultReminders();
+      final enabled = prefs.getBool('notificationsEnabled') ?? true;
+      if (enabled) {
+        await NotificationService.scheduleDefaultReminders(
+          morningHour: prefs.getInt('morningHour') ?? 6,
+          morningMinute: prefs.getInt('morningMinute') ?? 30,
+          eveningHour: prefs.getInt('eveningHour') ?? 18,
+          eveningMinute: prefs.getInt('eveningMinute') ?? 0,
+          sleepHour: prefs.getInt('sleepHour') ?? 22,
+          sleepMinute: prefs.getInt('sleepMinute') ?? 0,
+        );
       }
     } catch (e) {
       print('Background notification setup failed: $e');
