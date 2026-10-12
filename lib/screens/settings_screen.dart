@@ -6,6 +6,46 @@ import '../services/notification_service.dart';
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
+  Future<void> _pickTime(
+    BuildContext context,
+    int hour,
+    int minute,
+    Future<void> Function(int, int) onSave,
+  ) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: hour, minute: minute),
+      builder: (context, child) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      await onSave(picked.hour, picked.minute);
+      final state = context.read<AppState>();
+      if (state.notificationsEnabled) {
+        await NotificationService.scheduleDefaultReminders(
+          morningHour: state.morningHour,
+          morningMinute: state.morningMinute,
+          eveningHour: state.eveningHour,
+          eveningMinute: state.eveningMinute,
+          sleepHour: state.sleepHour,
+          sleepMinute: state.sleepMinute,
+        );
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم تحديث الموعد ✓'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
@@ -13,7 +53,8 @@ class SettingsScreen extends StatelessWidget {
     final primary = isDark ? const Color(0xFF1A7A5C) : const Color(0xFF0F503C);
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0D1F1A) : const Color(0xFFF5F9F7),
+      backgroundColor:
+          isDark ? const Color(0xFF0D1F1A) : const Color(0xFFF5F9F7),
       appBar: AppBar(
         title: const Text(
           'الإعدادات',
@@ -28,22 +69,44 @@ class SettingsScreen extends StatelessWidget {
           Card(
             elevation: isDark ? 0 : 1,
             color: isDark ? Colors.white.withOpacity(0.08) : Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: SwitchListTile(
-              title: const Text('الوضع الليلي'),
-              subtitle: Text(
-                state.isDarkMode ? 'مفعّل' : 'معطّل',
-                style: TextStyle(
-                  color: isDark ? Colors.white54 : Colors.black45,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Column(
+              children: [
+                SwitchListTile(
+                  title: const Text('الوضع الليلي'),
+                  subtitle: Text(
+                    state.isDarkMode ? 'مفعّل' : 'معطّل',
+                    style: TextStyle(
+                      color: isDark ? Colors.white54 : Colors.black45,
+                    ),
+                  ),
+                  secondary: Icon(
+                    state.isDarkMode ? Icons.dark_mode : Icons.light_mode,
+                    color: primary,
+                  ),
+                  value: state.isDarkMode,
+                  activeColor: const Color(0xFFD4AF37),
+                  onChanged: (_) => state.toggleTheme(),
                 ),
-              ),
-              secondary: Icon(
-                state.isDarkMode ? Icons.dark_mode : Icons.light_mode,
-                color: primary,
-              ),
-              value: state.isDarkMode,
-              activeColor: const Color(0xFFD4AF37),
-              onChanged: (_) => state.toggleTheme(),
+                const Divider(height: 1),
+                SwitchListTile(
+                  title: const Text('صوت عند التسبيح'),
+                  subtitle: Text(
+                    state.soundEnabled ? 'مفعّل' : 'معطّل',
+                    style: TextStyle(
+                      color: isDark ? Colors.white54 : Colors.black45,
+                    ),
+                  ),
+                  secondary: Icon(
+                    state.soundEnabled ? Icons.volume_up : Icons.volume_off,
+                    color: primary,
+                  ),
+                  value: state.soundEnabled,
+                  activeColor: const Color(0xFFD4AF37),
+                  onChanged: (_) => state.toggleSound(),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 24),
@@ -53,7 +116,8 @@ class SettingsScreen extends StatelessWidget {
           Card(
             elevation: isDark ? 0 : 1,
             color: isDark ? Colors.white.withOpacity(0.08) : Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Column(
               children: [
                 SwitchListTile(
@@ -77,7 +141,14 @@ class SettingsScreen extends StatelessWidget {
                   onChanged: (_) async {
                     await state.toggleNotifications();
                     if (state.notificationsEnabled) {
-                      await NotificationService.scheduleDefaultReminders();
+                      await NotificationService.scheduleDefaultReminders(
+                        morningHour: state.morningHour,
+                        morningMinute: state.morningMinute,
+                        eveningHour: state.eveningHour,
+                        eveningMinute: state.eveningMinute,
+                        sleepHour: state.sleepHour,
+                        sleepMinute: state.sleepMinute,
+                      );
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
@@ -104,21 +175,49 @@ class SettingsScreen extends StatelessWidget {
                   ListTile(
                     leading: Icon(Icons.wb_sunny, color: primary),
                     title: const Text('أذكار الصباح'),
-                    subtitle: const Text('كل يوم الساعة 6:30 صباحاً'),
+                    subtitle: Text(
+                      'الساعة ${state.formatTime(state.morningHour, state.morningMinute)}',
+                    ),
+                    trailing: const Icon(Icons.edit, size: 20),
+                    onTap: () => _pickTime(
+                      context,
+                      state.morningHour,
+                      state.morningMinute,
+                      state.setMorningTime,
+                    ),
                   ),
                   ListTile(
                     leading: Icon(Icons.nights_stay, color: primary),
                     title: const Text('أذكار المساء'),
-                    subtitle: const Text('كل يوم الساعة 6:00 مساءً'),
+                    subtitle: Text(
+                      'الساعة ${state.formatTime(state.eveningHour, state.eveningMinute)}',
+                    ),
+                    trailing: const Icon(Icons.edit, size: 20),
+                    onTap: () => _pickTime(
+                      context,
+                      state.eveningHour,
+                      state.eveningMinute,
+                      state.setEveningTime,
+                    ),
                   ),
                   ListTile(
                     leading: Icon(Icons.bedtime, color: primary),
                     title: const Text('أذكار النوم'),
-                    subtitle: const Text('كل يوم الساعة 10:00 مساءً'),
+                    subtitle: Text(
+                      'الساعة ${state.formatTime(state.sleepHour, state.sleepMinute)}',
+                    ),
+                    trailing: const Icon(Icons.edit, size: 20),
+                    onTap: () => _pickTime(
+                      context,
+                      state.sleepHour,
+                      state.sleepMinute,
+                      state.setSleepTime,
+                    ),
                   ),
                   const Divider(height: 1),
                   ListTile(
-                    leading: const Icon(Icons.notification_add, color: Color(0xFFD4AF37)),
+                    leading: const Icon(Icons.notification_add,
+                        color: Color(0xFFD4AF37)),
                     title: const Text('اختبار الإشعار'),
                     subtitle: const Text('اضغط لإرسال إشعار تجريبي الآن'),
                     onTap: () async {
@@ -139,7 +238,8 @@ class SettingsScreen extends StatelessWidget {
           Card(
             elevation: isDark ? 0 : 1,
             color: isDark ? Colors.white.withOpacity(0.08) : Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -160,7 +260,8 @@ class SettingsScreen extends StatelessWidget {
                   const Divider(height: 24),
                   _StatRow(
                     label: 'المهام المكتملة',
-                    value: '${state.tasks.where((t) => t.isCompleted).length}',
+                    value:
+                        '${state.tasks.where((t) => t.isCompleted).length}',
                     icon: Icons.check_circle,
                     color: Colors.green,
                   ),
@@ -175,7 +276,8 @@ class SettingsScreen extends StatelessWidget {
           Card(
             elevation: isDark ? 0 : 1,
             color: isDark ? Colors.white.withOpacity(0.08) : Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: const Padding(
               padding: EdgeInsets.all(20),
               child: Column(
@@ -189,12 +291,12 @@ class SettingsScreen extends StatelessWidget {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    'الإصدار 1.0.1',
+                    'الإصدار 1.1.0',
                     style: TextStyle(color: Colors.grey),
                   ),
                   SizedBox(height: 16),
                   Text(
-                    'تطبيق بسيط وجميل يجمع بين الأذكار والتسبيح والمهام اليومية مع تذكيرات ذكية.',
+                    'تطبيق بسيط وجميل يجمع بين الأذكار والتسبيح والمهام اليومية مع تذكيرات قابلة للتخصيص.',
                     textAlign: TextAlign.center,
                     style: TextStyle(height: 1.6),
                   ),
