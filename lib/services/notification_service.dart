@@ -1,6 +1,6 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest.dart' as tz;
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _notifications =
@@ -11,16 +11,17 @@ class NotificationService {
   static const int sleepId = 3;
 
   static bool _initialized = false;
+  static String? lastError;
 
   static Future<void> init() async {
-    if (_initialized) return;
     try {
-      tz.initializeTimeZones();
-      try {
-        tz.setLocalLocation(tz.getLocation('Asia/Riyadh'));
-      } catch (_) {
+      tzdata.initializeTimeZones();
+      // UTC أولاً لضمان وجود منطقة دائماً
+      tz.setLocalLocation(tz.UTC);
+      for (final name in ['Asia/Riyadh', 'Asia/Dubai', 'Africa/Cairo']) {
         try {
-          tz.setLocalLocation(tz.getLocation('UTC'));
+          tz.setLocalLocation(tz.getLocation(name));
+          break;
         } catch (_) {}
       }
 
@@ -30,40 +31,40 @@ class NotificationService {
 
       await _notifications.initialize(initSettings);
 
-      final androidPlugin = _notifications
+      final android = _notifications
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>();
 
-      // إنشاء قنوات الإشعارات
-      await androidPlugin?.createNotificationChannel(
-        const AndroidNotificationChannel(
-          'dhikr_channel',
-          'تذكير الأذكار',
-          description: 'إشعارات تذكير الأذكار',
-          importance: Importance.high,
-          playSound: true,
-          enableVibration: true,
-        ),
-      );
-      await androidPlugin?.createNotificationChannel(
-        const AndroidNotificationChannel(
-          'tasks_channel',
-          'تذكير المهام',
-          description: 'إشعارات تذكير المهام',
-          importance: Importance.max,
-          playSound: true,
-          enableVibration: true,
-        ),
-      );
+      if (android != null) {
+        await android.createNotificationChannel(
+          const AndroidNotificationChannel(
+            'dhikr_channel',
+            'تذكير الأذكار',
+            description: 'إشعارات تذكير الأذكار',
+            importance: Importance.high,
+          ),
+        );
+        await android.createNotificationChannel(
+          const AndroidNotificationChannel(
+            'tasks_channel',
+            'تذكير المهام',
+            description: 'إشعارات تذكير المهام',
+            importance: Importance.max,
+          ),
+        );
 
-      // طلب الأذونات
-      try {
-        await androidPlugin?.requestNotificationsPermission();
-        await androidPlugin?.requestExactAlarmsPermission();
-      } catch (_) {}
+        try {
+          await android.requestNotificationsPermission();
+        } catch (_) {}
+        try {
+          await android.requestExactAlarmsPermission();
+        } catch (_) {}
+      }
 
       _initialized = true;
+      lastError = null;
     } catch (e) {
+      lastError = e.toString();
       print('Notification init error: $e');
     }
   }
@@ -72,6 +73,19 @@ class NotificationService {
     if (!_initialized) {
       await init();
     }
+  }
+
+  static tz.TZDateTime _toTz(DateTime when) {
+    // DateTime من المنتقي محلي على الجهاز — نبني TZDateTime بنفس الأرقام
+    return tz.TZDateTime(
+      tz.local,
+      when.year,
+      when.month,
+      when.day,
+      when.hour,
+      when.minute,
+      when.second,
+    );
   }
 
   static Future<void> scheduleDaily({
@@ -83,11 +97,18 @@ class NotificationService {
   }) async {
     try {
       await _ensureInit();
+      final now = tz.TZDateTime.now(tz.local);
+      var scheduled =
+          tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
+      if (!scheduled.isAfter(now)) {
+        scheduled = scheduled.add(const Duration(days: 1));
+      }
+
       await _notifications.zonedSchedule(
         id,
         title,
         body,
-        _nextInstanceOfTime(hour, minute),
+        scheduled,
         const NotificationDetails(
           android: AndroidNotificationDetails(
             'dhikr_channel',
@@ -99,7 +120,7 @@ class NotificationService {
             enableVibration: true,
           ),
         ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
@@ -107,16 +128,6 @@ class NotificationService {
     } catch (e) {
       print('Schedule daily error: $e');
     }
-  }
-
-  static tz.TZDateTime _nextInstanceOfTime(int hour, int minute) {
-    final now = tz.TZDateTime.now(tz.local);
-    var scheduled =
-        tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
-    if (scheduled.isBefore(now)) {
-      scheduled = scheduled.add(const Duration(days: 1));
-    }
-    return scheduled;
   }
 
   static Future<void> scheduleDefaultReminders({
@@ -153,72 +164,40 @@ class NotificationService {
     );
   }
 
-  /// جدولة إشعار لمرة واحدة في وقت محدد (لتذكير المهام)
+  /// جدولة إشعار مهمة — يرجع true عند النجاح
   static Future<bool> scheduleOneTime({
     required int id,
     required String title,
     required String body,
     required DateTime when,
   }) async {
+    lastError = null;
     try {
       await _ensureInit();
 
-      final now = DateTime.now();
-      if (when.isBefore(now.add(const Duration(seconds: 30)))) {
-        // إذا كان الوقت قريباً جداً أو في الماضي، أرسل فوراً بعد ثوانٍ
-        print('Time too soon or past, adjusting...');
-      }
-      if (when.isBefore(now)) {
+      if (!_initialized) {
+        lastError = 'فشل تهيئة الإشعارات';
         return false;
       }
 
-      // بناء الوقت حسب المنطقة المحلية بشكل صحيح
-      final scheduled = tz.TZDateTime(
-        tz.local,
-        when.year,
-        when.month,
-        when.day,
-        when.hour,
-        when.minute,
-        when.second,
-      );
+      final now = DateTime.now();
+      if (!when.isAfter(now)) {
+        lastError = 'الوقت المختار في الماضي';
+        return false;
+      }
 
-      print('Scheduling task notification at: $scheduled (now: ${tz.TZDateTime.now(tz.local)})');
+      final scheduled = _toTz(when);
 
-      await _notifications.zonedSchedule(
-        id,
-        title,
-        body,
-        scheduled,
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'tasks_channel',
-            'تذكير المهام',
-            channelDescription: 'إشعارات تذكير المهام',
-            importance: Importance.max,
-            priority: Priority.max,
-            playSound: true,
-            enableVibration: true,
-            category: AndroidNotificationCategory.reminder,
-          ),
-        ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-      );
-      return true;
-    } catch (e) {
-      print('Schedule one-time error: $e');
-      // محاولة بديلة بدون exact
+      // طلب إذن المنبهات الدقيقة قبل الجدولة
       try {
-        final scheduled = tz.TZDateTime(
-          tz.local,
-          when.year,
-          when.month,
-          when.day,
-          when.hour,
-          when.minute,
-        );
+        final android = _notifications
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>();
+        await android?.requestExactAlarmsPermission();
+      } catch (_) {}
+
+      // المحاولة 1: جدولة دقيقة
+      try {
         await _notifications.zonedSchedule(
           id,
           title,
@@ -228,24 +207,62 @@ class NotificationService {
             android: AndroidNotificationDetails(
               'tasks_channel',
               'تذكير المهام',
+              channelDescription: 'إشعارات تذكير المهام',
               importance: Importance.max,
               priority: Priority.max,
+              playSound: true,
+              enableVibration: true,
             ),
           ),
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
           uiLocalNotificationDateInterpretation:
               UILocalNotificationDateInterpretation.absoluteTime,
         );
         return true;
-      } catch (e2) {
-        print('Fallback schedule error: $e2');
-        return false;
+      } catch (e1) {
+        print('Exact schedule failed: $e1');
+        // المحاولة 2: جدولة غير دقيقة
+        try {
+          await _notifications.zonedSchedule(
+            id,
+            title,
+            body,
+            scheduled,
+            const NotificationDetails(
+              android: AndroidNotificationDetails(
+                'tasks_channel',
+                'تذكير المهام',
+                channelDescription: 'إشعارات تذكير المهام',
+                importance: Importance.max,
+                priority: Priority.max,
+                playSound: true,
+                enableVibration: true,
+              ),
+            ),
+            androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+            uiLocalNotificationDateInterpretation:
+                UILocalNotificationDateInterpretation.absoluteTime,
+          );
+          return true;
+        } catch (e2) {
+          lastError = e2.toString();
+          print('Inexact schedule failed: $e2');
+          return false;
+        }
       }
+    } catch (e) {
+      lastError = e.toString();
+      print('Schedule one-time error: $e');
+      return false;
     }
   }
 
   static int taskNotificationId(String taskId) {
-    return 100000 + (int.tryParse(taskId) ?? taskId.hashCode.abs()) % 900000;
+    final parsed = int.tryParse(taskId);
+    if (parsed != null) {
+      return 100000 + (parsed % 900000);
+    }
+    return 100000 + (taskId.hashCode.abs() % 900000);
   }
 
   static Future<void> cancel(int id) async {
