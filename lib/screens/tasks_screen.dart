@@ -231,17 +231,29 @@ class TasksScreen extends StatelessWidget {
 
                     state.addTask(title, reminderTime: selectedDateTime);
 
+                    String message = 'تمت إضافة المهمة';
                     if (selectedDateTime != null) {
                       final task = state.tasks.first;
-                      await NotificationService.scheduleOneTime(
+                      final ok = await NotificationService.scheduleOneTime(
                         id: NotificationService.taskNotificationId(task.id),
                         title: 'تذكير مهمة 📋',
                         body: title,
                         when: selectedDateTime!,
                       );
+                      message = ok
+                          ? 'تمت إضافة المهمة مع التذكير ✓'
+                          : 'تمت الإضافة، لكن فشل جدولة الإشعار';
                     }
 
-                    if (ctx.mounted) Navigator.pop(ctx);
+                    if (ctx.mounted) {
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(message),
+                          duration: const Duration(seconds: 3),
+                        ),
+                      );
+                    }
                   },
                   child: const Text('إضافة'),
                 ),
