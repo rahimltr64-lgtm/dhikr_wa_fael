@@ -15,12 +15,6 @@ class SettingsScreen extends StatelessWidget {
     final picked = await showTimePicker(
       context: context,
       initialTime: TimeOfDay(hour: hour, minute: minute),
-      builder: (context, child) {
-        return Directionality(
-          textDirection: TextDirection.rtl,
-          child: child!,
-        );
-      },
     );
     if (picked != null) {
       await onSave(picked.hour, picked.minute);
