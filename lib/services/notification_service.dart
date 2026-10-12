@@ -11,19 +11,32 @@ class NotificationService {
   static const int sleepId = 3;
 
   static Future<void> init() async {
-    tz.initializeTimeZones();
+    try {
+      tz.initializeTimeZones();
+      // تعيين المنطقة الزمنية الافتراضية (السعودية / الخليج)
+      try {
+        tz.setLocalLocation(tz.getLocation('Asia/Riyadh'));
+      } catch (_) {
+        // إذا فشلت، نستخدم UTC
+      }
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const initSettings = InitializationSettings(android: androidSettings);
+      const androidSettings =
+          AndroidInitializationSettings('@mipmap/ic_launcher');
+      const initSettings = InitializationSettings(android: androidSettings);
 
-    await _notifications.initialize(initSettings);
+      await _notifications.initialize(initSettings);
 
-    // طلب إذن الإشعارات (أندرويد 13+)
-    final androidPlugin = _notifications
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-    await androidPlugin?.requestNotificationsPermission();
-    await androidPlugin?.requestExactAlarmsPermission();
+      // طلب إذن الإشعارات (أندرويد 13+) - بدون إيقاف التطبيق إذا فشل
+      try {
+        final androidPlugin = _notifications
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>();
+        await androidPlugin?.requestNotificationsPermission();
+      } catch (_) {}
+    } catch (e) {
+      // لا نوقف التطبيق إذا فشلت التهيئة
+      print('Notification init error: $e');
+    }
   }
 
   /// جدولة إشعار يومي في وقت محدد
@@ -34,27 +47,31 @@ class NotificationService {
     required int hour,
     required int minute,
   }) async {
-    await _notifications.zonedSchedule(
-      id,
-      title,
-      body,
-      _nextInstanceOfTime(hour, minute),
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'dhikr_channel',
-          'تذكير الأذكار',
-          channelDescription: 'إشعارات تذكير الأذكار والمهام',
-          importance: Importance.high,
-          priority: Priority.high,
-          playSound: true,
-          enableVibration: true,
+    try {
+      await _notifications.zonedSchedule(
+        id,
+        title,
+        body,
+        _nextInstanceOfTime(hour, minute),
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'dhikr_channel',
+            'تذكير الأذكار',
+            channelDescription: 'إشعارات تذكير الأذكار والمهام',
+            importance: Importance.high,
+            priority: Priority.high,
+            playSound: true,
+            enableVibration: true,
+          ),
         ),
-      ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time,
-    );
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: DateTimeComponents.time,
+      );
+    } catch (e) {
+      print('Schedule error: $e');
+    }
   }
 
   static tz.TZDateTime _nextInstanceOfTime(int hour, int minute) {
@@ -93,11 +110,15 @@ class NotificationService {
   }
 
   static Future<void> cancel(int id) async {
-    await _notifications.cancel(id);
+    try {
+      await _notifications.cancel(id);
+    } catch (_) {}
   }
 
   static Future<void> cancelAll() async {
-    await _notifications.cancelAll();
+    try {
+      await _notifications.cancelAll();
+    } catch (_) {}
   }
 
   /// إشعار فوري (للاختبار)
@@ -105,19 +126,23 @@ class NotificationService {
     required String title,
     required String body,
   }) async {
-    await _notifications.show(
-      99,
-      title,
-      body,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'dhikr_channel',
-          'تذكير الأذكار',
-          channelDescription: 'إشعارات تذكير الأذكار والمهام',
-          importance: Importance.high,
-          priority: Priority.high,
+    try {
+      await _notifications.show(
+        99,
+        title,
+        body,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'dhikr_channel',
+            'تذكير الأذكار',
+            channelDescription: 'إشعارات تذكير الأذكار والمهام',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      print('Show instant error: $e');
+    }
   }
 }
