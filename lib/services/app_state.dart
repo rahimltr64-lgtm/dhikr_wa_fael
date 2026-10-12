@@ -8,6 +8,13 @@ class AppState extends ChangeNotifier {
 
   bool isDarkMode = false;
   bool notificationsEnabled = true;
+  bool soundEnabled = true;
+  int morningHour = 6;
+  int morningMinute = 30;
+  int eveningHour = 18;
+  int eveningMinute = 0;
+  int sleepHour = 22;
+  int sleepMinute = 0;
   int tasbihCount = 0;
   int totalTasbih = 0;
   List<TaskModel> tasks = [];
@@ -139,6 +146,13 @@ class AppState extends ChangeNotifier {
   Future<void> loadData() async {
     isDarkMode = storage.isDarkMode;
     notificationsEnabled = storage.notificationsEnabled;
+    soundEnabled = storage.soundEnabled;
+    morningHour = storage.morningHour;
+    morningMinute = storage.morningMinute;
+    eveningHour = storage.eveningHour;
+    eveningMinute = storage.eveningMinute;
+    sleepHour = storage.sleepHour;
+    sleepMinute = storage.sleepMinute;
     tasbihCount = storage.tasbihCount;
     totalTasbih = storage.totalTasbih;
     tasks = storage.getTasks();
@@ -156,6 +170,39 @@ class AppState extends ChangeNotifier {
     notificationsEnabled = !notificationsEnabled;
     await storage.setNotificationsEnabled(notificationsEnabled);
     notifyListeners();
+  }
+
+  void toggleSound() {
+    soundEnabled = !soundEnabled;
+    storage.setSoundEnabled(soundEnabled);
+    notifyListeners();
+  }
+
+  Future<void> setMorningTime(int hour, int minute) async {
+    morningHour = hour;
+    morningMinute = minute;
+    await storage.setMorningTime(hour, minute);
+    notifyListeners();
+  }
+
+  Future<void> setEveningTime(int hour, int minute) async {
+    eveningHour = hour;
+    eveningMinute = minute;
+    await storage.setEveningTime(hour, minute);
+    notifyListeners();
+  }
+
+  Future<void> setSleepTime(int hour, int minute) async {
+    sleepHour = hour;
+    sleepMinute = minute;
+    await storage.setSleepTime(hour, minute);
+    notifyListeners();
+  }
+
+  String formatTime(int hour, int minute) {
+    final h = hour.toString().padLeft(2, '0');
+    final m = minute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 
   void incrementTasbih() {
