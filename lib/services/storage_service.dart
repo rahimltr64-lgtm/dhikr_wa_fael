@@ -17,11 +17,38 @@ class StorageService {
   Future<void> setNotificationsEnabled(bool value) =>
       _prefs.setBool('notificationsEnabled', value);
 
+  // Sound on tasbih
+  bool get soundEnabled => _prefs.getBool('soundEnabled') ?? true;
+  Future<void> setSoundEnabled(bool value) =>
+      _prefs.setBool('soundEnabled', value);
+
+  // Notification times (hour, minute)
+  int get morningHour => _prefs.getInt('morningHour') ?? 6;
+  int get morningMinute => _prefs.getInt('morningMinute') ?? 30;
+  int get eveningHour => _prefs.getInt('eveningHour') ?? 18;
+  int get eveningMinute => _prefs.getInt('eveningMinute') ?? 0;
+  int get sleepHour => _prefs.getInt('sleepHour') ?? 22;
+  int get sleepMinute => _prefs.getInt('sleepMinute') ?? 0;
+
+  Future<void> setMorningTime(int hour, int minute) async {
+    await _prefs.setInt('morningHour', hour);
+    await _prefs.setInt('morningMinute', minute);
+  }
+
+  Future<void> setEveningTime(int hour, int minute) async {
+    await _prefs.setInt('eveningHour', hour);
+    await _prefs.setInt('eveningMinute', minute);
+  }
+
+  Future<void> setSleepTime(int hour, int minute) async {
+    await _prefs.setInt('sleepHour', hour);
+    await _prefs.setInt('sleepMinute', minute);
+  }
+
   // Tasbih counter
   int get tasbihCount => _prefs.getInt('tasbihCount') ?? 0;
   Future<void> setTasbihCount(int value) => _prefs.setInt('tasbihCount', value);
 
-  // Total tasbih ever
   int get totalTasbih => _prefs.getInt('totalTasbih') ?? 0;
   Future<void> setTotalTasbih(int value) => _prefs.setInt('totalTasbih', value);
 
@@ -44,7 +71,7 @@ class StorageService {
     await _prefs.setString('tasks', data);
   }
 
-  // Custom dhikrs progress
+  // Dhikr progress
   Map<String, int> getDhikrProgress() {
     final String? data = _prefs.getString('dhikrProgress');
     if (data == null || data.isEmpty) return {};
