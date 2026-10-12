@@ -82,6 +82,9 @@ class TasbihScreen extends StatelessWidget {
             GestureDetector(
               onTap: () {
                 HapticFeedback.lightImpact();
+                if (state.soundEnabled) {
+                  SystemSound.play(SystemSoundType.click);
+                }
                 state.incrementTasbih();
               },
               child: Container(
