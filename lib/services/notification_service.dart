@@ -13,12 +13,9 @@ class NotificationService {
   static Future<void> init() async {
     try {
       tz.initializeTimeZones();
-      // تعيين المنطقة الزمنية الافتراضية (السعودية / الخليج)
       try {
         tz.setLocalLocation(tz.getLocation('Asia/Riyadh'));
-      } catch (_) {
-        // إذا فشلت، نستخدم UTC
-      }
+      } catch (_) {}
 
       const androidSettings =
           AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -26,7 +23,6 @@ class NotificationService {
 
       await _notifications.initialize(initSettings);
 
-      // طلب إذن الإشعارات (أندرويد 13+) - بدون إيقاف التطبيق إذا فشل
       try {
         final androidPlugin = _notifications
             .resolvePlatformSpecificImplementation<
@@ -34,12 +30,10 @@ class NotificationService {
         await androidPlugin?.requestNotificationsPermission();
       } catch (_) {}
     } catch (e) {
-      // لا نوقف التطبيق إذا فشلت التهيئة
       print('Notification init error: $e');
     }
   }
 
-  /// جدولة إشعار يومي في وقت محدد
   static Future<void> scheduleDaily({
     required int id,
     required String title,
@@ -84,28 +78,35 @@ class NotificationService {
     return scheduled;
   }
 
-  /// جدولة الإشعارات الافتراضية
-  static Future<void> scheduleDefaultReminders() async {
+  static Future<void> scheduleDefaultReminders({
+    int morningHour = 6,
+    int morningMinute = 30,
+    int eveningHour = 18,
+    int eveningMinute = 0,
+    int sleepHour = 22,
+    int sleepMinute = 0,
+  }) async {
+    await cancelAll();
     await scheduleDaily(
       id: morningId,
       title: 'أذكار الصباح 🌿',
       body: 'حان وقت أذكار الصباح، لا تنسَ ذكر الله',
-      hour: 6,
-      minute: 30,
+      hour: morningHour,
+      minute: morningMinute,
     );
     await scheduleDaily(
       id: eveningId,
       title: 'أذكار المساء 🌙',
       body: 'حان وقت أذكار المساء',
-      hour: 18,
-      minute: 0,
+      hour: eveningHour,
+      minute: eveningMinute,
     );
     await scheduleDaily(
       id: sleepId,
       title: 'أذكار النوم 😴',
       body: 'قبل النوم، اقرأ أذكار النوم',
-      hour: 22,
-      minute: 0,
+      hour: sleepHour,
+      minute: sleepMinute,
     );
   }
 
@@ -121,7 +122,6 @@ class NotificationService {
     } catch (_) {}
   }
 
-  /// إشعار فوري (للاختبار)
   static Future<void> showInstant({
     required String title,
     required String body,
