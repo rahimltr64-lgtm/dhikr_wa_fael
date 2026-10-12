@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../services/app_state.dart';
+import '../services/notification_service.dart';
 import '../models/task_model.dart';
 
 class TasksScreen extends StatelessWidget {
@@ -16,7 +18,8 @@ class TasksScreen extends StatelessWidget {
     final completed = state.tasks.where((t) => t.isCompleted).toList();
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0D1F1A) : const Color(0xFFF5F9F7),
+      backgroundColor:
+          isDark ? const Color(0xFF0D1F1A) : const Color(0xFFF5F9F7),
       appBar: AppBar(
         title: const Text(
           'المهام اليومية',
@@ -39,6 +42,11 @@ class TasksScreen extends StatelessWidget {
                       ),
                       ElevatedButton(
                         onPressed: () {
+                          for (final t in completed) {
+                            NotificationService.cancel(
+                              NotificationService.taskNotificationId(t.id),
+                            );
+                          }
                           state.clearCompletedTasks();
                           Navigator.pop(ctx);
                         },
@@ -76,7 +84,7 @@ class TasksScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'اضغط + لإضافة مهمة',
+                    'اضغط + لإضافة مهمة مع تذكير',
                     style: TextStyle(
                       color: isDark ? Colors.white38 : Colors.black38,
                     ),
@@ -89,12 +97,16 @@ class TasksScreen extends StatelessWidget {
               children: [
                 if (pending.isNotEmpty) ...[
                   _sectionTitle('قيد التنفيذ', pending.length, primary, isDark),
-                  ...pending.map((t) => _TaskTile(task: t, primary: primary)),
+                  ...pending.map(
+                    (t) => _TaskTile(task: t, primary: primary),
+                  ),
                   const SizedBox(height: 16),
                 ],
                 if (completed.isNotEmpty) ...[
                   _sectionTitle('مكتملة', completed.length, primary, isDark),
-                  ...completed.map((t) => _TaskTile(task: t, primary: primary)),
+                  ...completed.map(
+                    (t) => _TaskTile(task: t, primary: primary),
+                  ),
                 ],
               ],
             ),
@@ -137,40 +149,119 @@ class TasksScreen extends StatelessWidget {
 
   void _showAddDialog(BuildContext context, AppState state) {
     final controller = TextEditingController();
+    DateTime? selectedDateTime;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('مهمة جديدة'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'اكتب المهمة هنا...',
-            border: OutlineInputBorder(),
-          ),
-          onSubmitted: (value) {
-            if (value.trim().isNotEmpty) {
-              state.addTask(value.trim());
-              Navigator.pop(ctx);
-            }
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final dateLabel = selectedDateTime == null
+                ? 'بدون تذكير'
+                : DateFormat('yyyy/MM/dd – HH:mm').format(selectedDateTime!);
+
+            return AlertDialog(
+              title: const Text('مهمة جديدة'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      hintText: 'اكتب المهمة هنا...',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.notifications_active,
+                        color: Color(0xFFD4AF37)),
+                    title: const Text('تذكير'),
+                    subtitle: Text(dateLabel),
+                    trailing: selectedDateTime != null
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 20),
+                            onPressed: () {
+                              setDialogState(() => selectedDateTime = null);
+                            },
+                          )
+                        : const Icon(Icons.chevron_left),
+                    onTap: () async {
+                      final now = DateTime.now();
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: now,
+                        firstDate: now,
+                        lastDate: now.add(const Duration(days: 365)),
+                        builder: (context, child) {
+                          return Directionality(
+                            textDirection: TextDirection.rtl,
+                            child: child!,
+                          );
+                        },
+                      );
+                      if (date == null || !context.mounted) return;
+
+                      final time = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay.fromDateTime(
+                          now.add(const Duration(hours: 1)),
+                        ),
+                        builder: (context, child) {
+                          return Directionality(
+                            textDirection: TextDirection.rtl,
+                            child: child!,
+                          );
+                        },
+                      );
+                      if (time == null) return;
+
+                      setDialogState(() {
+                        selectedDateTime = DateTime(
+                          date.year,
+                          date.month,
+                          date.day,
+                          time.hour,
+                          time.minute,
+                        );
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('إلغاء'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final title = controller.text.trim();
+                    if (title.isEmpty) return;
+
+                    state.addTask(title, reminderTime: selectedDateTime);
+
+                    if (selectedDateTime != null) {
+                      final task = state.tasks.first;
+                      await NotificationService.scheduleOneTime(
+                        id: NotificationService.taskNotificationId(task.id),
+                        title: 'تذكير مهمة 📋',
+                        body: title,
+                        when: selectedDateTime!,
+                      );
+                    }
+
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  },
+                  child: const Text('إضافة'),
+                ),
+              ],
+            );
           },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                state.addTask(controller.text.trim());
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text('إضافة'),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -186,6 +277,12 @@ class _TaskTile extends StatelessWidget {
     final state = context.read<AppState>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    String? reminderText;
+    if (task.reminderTime != null) {
+      reminderText =
+          DateFormat('yyyy/MM/dd – HH:mm').format(task.reminderTime!);
+    }
+
     return Dismissible(
       key: Key(task.id),
       direction: DismissDirection.endToStart,
@@ -199,7 +296,12 @@ class _TaskTile extends StatelessWidget {
         ),
         child: const Icon(Icons.delete, color: Colors.white),
       ),
-      onDismissed: (_) => state.deleteTask(task.id),
+      onDismissed: (_) {
+        NotificationService.cancel(
+          NotificationService.taskNotificationId(task.id),
+        );
+        state.deleteTask(task.id);
+      },
       child: Card(
         margin: const EdgeInsets.only(bottom: 8),
         elevation: isDark ? 0 : 1,
@@ -209,7 +311,15 @@ class _TaskTile extends StatelessWidget {
           leading: Checkbox(
             value: task.isCompleted,
             activeColor: const Color(0xFFD4AF37),
-            onChanged: (_) => state.toggleTask(task.id),
+            onChanged: (_) {
+              if (!task.isCompleted) {
+                // عند الإكمال ألغِ الإشعار
+                NotificationService.cancel(
+                  NotificationService.taskNotificationId(task.id),
+                );
+              }
+              state.toggleTask(task.id);
+            },
           ),
           title: Text(
             task.title,
@@ -221,12 +331,36 @@ class _TaskTile extends StatelessWidget {
                   : (isDark ? Colors.white : Colors.black87),
             ),
           ),
+          subtitle: reminderText != null
+              ? Row(
+                  children: [
+                    Icon(
+                      Icons.alarm,
+                      size: 14,
+                      color: isDark ? Colors.white54 : primary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      reminderText,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? Colors.white54 : primary,
+                      ),
+                    ),
+                  ],
+                )
+              : null,
           trailing: IconButton(
             icon: Icon(
               Icons.delete_outline,
               color: isDark ? Colors.white38 : Colors.black38,
             ),
-            onPressed: () => state.deleteTask(task.id),
+            onPressed: () {
+              NotificationService.cancel(
+                NotificationService.taskNotificationId(task.id),
+              );
+              state.deleteTask(task.id);
+            },
           ),
         ),
       ),
