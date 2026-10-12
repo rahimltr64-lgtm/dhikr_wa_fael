@@ -10,7 +10,6 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        // تفعيل Core Library Desugaring (مطلوب لـ flutter_local_notifications)
         coreLibraryDesugaringEnabled true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -32,6 +31,9 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.debug
+            // تعطيل التصغير لتجنب خطأ Gson مع الإشعارات المجدولة
+            minifyEnabled false
+            shrinkResources false
         }
     }
 }
