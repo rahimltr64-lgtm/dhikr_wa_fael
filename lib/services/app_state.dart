@@ -7,6 +7,7 @@ class AppState extends ChangeNotifier {
   final StorageService storage;
 
   bool isDarkMode = false;
+  bool notificationsEnabled = true;
   int tasbihCount = 0;
   int totalTasbih = 0;
   List<TaskModel> tasks = [];
@@ -137,6 +138,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> loadData() async {
     isDarkMode = storage.isDarkMode;
+    notificationsEnabled = storage.notificationsEnabled;
     tasbihCount = storage.tasbihCount;
     totalTasbih = storage.totalTasbih;
     tasks = storage.getTasks();
@@ -147,6 +149,12 @@ class AppState extends ChangeNotifier {
   void toggleTheme() {
     isDarkMode = !isDarkMode;
     storage.setDarkMode(isDarkMode);
+    notifyListeners();
+  }
+
+  Future<void> toggleNotifications() async {
+    notificationsEnabled = !notificationsEnabled;
+    await storage.setNotificationsEnabled(notificationsEnabled);
     notifyListeners();
   }
 
