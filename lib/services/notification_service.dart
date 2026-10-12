@@ -110,6 +110,48 @@ class NotificationService {
     );
   }
 
+  /// جدولة إشعار لمرة واحدة في وقت محدد (لتذكير المهام)
+  static Future<void> scheduleOneTime({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime when,
+  }) async {
+    try {
+      if (when.isBefore(DateTime.now())) return;
+
+      final scheduled = tz.TZDateTime.from(when, tz.local);
+
+      await _notifications.zonedSchedule(
+        id,
+        title,
+        body,
+        scheduled,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'tasks_channel',
+            'تذكير المهام',
+            channelDescription: 'إشعارات تذكير المهام',
+            importance: Importance.high,
+            priority: Priority.high,
+            playSound: true,
+            enableVibration: true,
+          ),
+        ),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+      );
+    } catch (e) {
+      print('Schedule one-time error: $e');
+    }
+  }
+
+  /// تحويل معرف المهمة إلى رقم إشعار فريد
+  static int taskNotificationId(String taskId) {
+    return 100000 + (int.tryParse(taskId) ?? taskId.hashCode.abs()) % 900000;
+  }
+
   static Future<void> cancel(int id) async {
     try {
       await _notifications.cancel(id);
