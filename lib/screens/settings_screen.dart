@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/app_state.dart';
+import '../services/notification_service.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -43,6 +44,92 @@ class SettingsScreen extends StatelessWidget {
               value: state.isDarkMode,
               activeColor: const Color(0xFFD4AF37),
               onChanged: (_) => state.toggleTheme(),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Notifications
+          _SectionHeader(title: 'الإشعارات', primary: primary),
+          Card(
+            elevation: isDark ? 0 : 1,
+            color: isDark ? Colors.white.withOpacity(0.08) : Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Column(
+              children: [
+                SwitchListTile(
+                  title: const Text('تفعيل الإشعارات'),
+                  subtitle: Text(
+                    state.notificationsEnabled
+                        ? 'مفعّل - ستصلك تذكيرات يومية'
+                        : 'معطّل',
+                    style: TextStyle(
+                      color: isDark ? Colors.white54 : Colors.black45,
+                    ),
+                  ),
+                  secondary: Icon(
+                    state.notificationsEnabled
+                        ? Icons.notifications_active
+                        : Icons.notifications_off,
+                    color: primary,
+                  ),
+                  value: state.notificationsEnabled,
+                  activeColor: const Color(0xFFD4AF37),
+                  onChanged: (_) async {
+                    await state.toggleNotifications();
+                    if (state.notificationsEnabled) {
+                      await NotificationService.scheduleDefaultReminders();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('تم تفعيل الإشعارات ✓'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    } else {
+                      await NotificationService.cancelAll();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('تم إيقاف الإشعارات'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                ),
+                if (state.notificationsEnabled) ...[
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: Icon(Icons.wb_sunny, color: primary),
+                    title: const Text('أذكار الصباح'),
+                    subtitle: const Text('كل يوم الساعة 6:30 صباحاً'),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.nights_stay, color: primary),
+                    title: const Text('أذكار المساء'),
+                    subtitle: const Text('كل يوم الساعة 6:00 مساءً'),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.bedtime, color: primary),
+                    title: const Text('أذكار النوم'),
+                    subtitle: const Text('كل يوم الساعة 10:00 مساءً'),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.notification_add, color: Color(0xFFD4AF37)),
+                    title: const Text('اختبار الإشعار'),
+                    subtitle: const Text('اضغط لإرسال إشعار تجريبي الآن'),
+                    onTap: () async {
+                      await NotificationService.showInstant(
+                        title: 'ذكر وفعل ✨',
+                        body: 'هذا إشعار تجريبي - الإشعارات تعمل بنجاح!',
+                      );
+                    },
+                  ),
+                ],
+              ],
             ),
           ),
           const SizedBox(height: 24),
@@ -102,12 +189,12 @@ class SettingsScreen extends StatelessWidget {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    'الإصدار 1.0.0',
+                    'الإصدار 1.0.1',
                     style: TextStyle(color: Colors.grey),
                   ),
                   SizedBox(height: 16),
                   Text(
-                    'تطبيق بسيط وجميل يجمع بين الأذكار والتسبيح والمهام اليومية.\nصمم ليعمل بسلاسة على الهاتف.',
+                    'تطبيق بسيط وجميل يجمع بين الأذكار والتسبيح والمهام اليومية مع تذكيرات ذكية.',
                     textAlign: TextAlign.center,
                     style: TextStyle(height: 1.6),
                   ),
