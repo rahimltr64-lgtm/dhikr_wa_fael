@@ -10,18 +10,6 @@ import 'services/notification_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // تهيئة الإشعارات
-  await NotificationService.init();
-
-  final prefs = await SharedPreferences.getInstance();
-  final storage = StorageService(prefs);
-
-  // جدولة الإشعارات الافتراضية إذا كانت مفعّلة
-  final notificationsEnabled = prefs.getBool('notificationsEnabled') ?? true;
-  if (notificationsEnabled) {
-    await NotificationService.scheduleDefaultReminders();
-  }
-
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -29,6 +17,11 @@ void main() async {
     ),
   );
 
+  // تحميل التخزين أولاً (مهم)
+  final prefs = await SharedPreferences.getInstance();
+  final storage = StorageService(prefs);
+
+  // تشغيل التطبيق فوراً دون انتظار الإشعارات
   runApp(
     MultiProvider(
       providers: [
@@ -37,6 +30,20 @@ void main() async {
       child: const DhikrApp(),
     ),
   );
+
+  // تهيئة الإشعارات في الخلفية بعد ظهور الواجهة
+  Future.microtask(() async {
+    try {
+      await NotificationService.init();
+      final notificationsEnabled =
+          prefs.getBool('notificationsEnabled') ?? true;
+      if (notificationsEnabled) {
+        await NotificationService.scheduleDefaultReminders();
+      }
+    } catch (e) {
+      print('Background notification setup failed: $e');
+    }
+  });
 }
 
 class DhikrApp extends StatelessWidget {
